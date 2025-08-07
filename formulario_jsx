@@ -1,0 +1,638 @@
+import React, { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router';
+import { Box, Button, Typography, Modal, IconButton, CircularProgress, TextField as MuiTextField } from '@mui/material';
+import {
+  MdArrowLeft,
+  MdArrowRight,
+  MdPerson,
+  MdLocationOn,
+  MdChecklist,
+  MdInventory,
+  MdViewModule,
+  MdLocalShipping
+} from 'react-icons/md';
+import { FaBoxes } from 'react-icons/fa';
+import { BsBoxSeam } from 'react-icons/bs';
+import { TfiSave } from 'react-icons/tfi';
+import axios from '@/services/axios';
+import toast from 'react-hot-toast';
+import Inicial from '@/pages/exportacao/inicial';
+import Informacoes from '@/pages/exportacao/informacoes';
+import FormularioRemessa from '@/pages/exportacao/formulario_remessa';
+import CondicoesRemessa from '@/pages/exportacao/condicoes_remessa';
+import RevisaoExportacao from '@/pages/exportacao/revisao_exportacao';
+import MaterialExportacao from '@/pages/exportacao/material_exportacao';
+import Embalagem from '@/pages/exportacao/embalagem';
+import Transporte from '@/pages/exportacao/transporte';
+import Estoque from '@/pages/exportacao/estoque';
+import { RiRobot2Line } from "react-icons/ri";
+import { IoIosClose } from "react-icons/io";
+
+export default function Exportacao({ showHeader = true }) {
+  const methods = useForm();
+  const { handleSubmit, watch, setValue } = methods;
+  const navigate = useNavigate();
+
+  const GEMINI_API_KEY = "AIzaSyCHasdSOtlksQ6ENWO5r3iiI9tg718ScBc";
+
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [geminiChatHistory, setGeminiChatHistory] = useState([]);
+
+  const addMessageToChat = (role, text) => {
+    setChatMessages(prevMessages => [...prevMessages, { role, text }]);
+  };
+
+  const generateChatResponse = async (userMessage) => {
+    addMessageToChat('user', userMessage);
+
+    const currentFormData = {
+      pesoLiquido: watch('peso_liquido_item'),
+      pesoBruto: watch('peso_bruto_caixa'),
+      qtdCxs: watch('qtd_cxs'),
+      dimensoes: watch('dimensoes'),
+      descricaoMaterial: watch('descricao_material'),
+      part_number: watch('part_number'),
+      qtd_pecas: watch('qtd_pecas'),
+      valor_unit: watch('valor_unit'),
+      valor_total: watch('valor_total'),
+      tipo_embalagem: watch('tipo_embalagem'),
+      codicoes_faturamento: watch('codicoes_faturamento'),
+    };
+
+    const systemInstruction = `Você é um assistente virtual especializado em exportação para a empresa ZEZINHO KAUE LTDA.
+        Sua função é fornecer informações e assistência APENAS relacionadas ao preenchimento do formulário de exportação, regulamentações de exportação, cálculos de peso/volume, sugestões de descrição de material, otimização de embalagem e transporte, e outros tópicos estritamente ligados ao processo de exportação e ao contexto deste sistema.
+        NÃO responda a perguntas sobre tópicos gerais, pessoais, ou que não estejam diretamente relacionados à exportação ou ao funcionamento deste sistema. Se uma pergunta estiver fora do seu escopo, responda educadamente que sua função é auxiliar apenas com o processo de exportação e o formulário.
+        Se for uma sugestão para preencher um campo do formulário, formate sua resposta começando com "PREENCHER_[ID_DO_CAMPO_DO_REACT_HOOK_FORM]:" seguido da sugestão. Por exemplo: "PREENCHER_DESCRICAO_MATERIAL: Descrição sugerida aqui."`;
+
+    let contextualPrompt = `${systemInstruction}\n\nO usuário perguntou: "${userMessage}".`;
+    if (currentFormData.pesoLiquido) contextualPrompt += ` O peso líquido atual por item é ${currentFormData.pesoLiquido || 'não informado'} kg.`;
+    if (currentFormData.pesoBruto) contextualPrompt += ` O peso bruto atual por caixa é ${currentFormData.pesoBruto || 'não informado'} kg.`;
+    if (currentFormData.qtdCxs) contextualPrompt += ` A quantidade de caixas é ${currentFormData.qtdCxs || 'não informado'}.`;
+    if (currentFormData.dimensoes) contextualPrompt += ` As dimensões da caixa são ${currentFormData.dimensoes || 'não informado'}.`;
+    if (currentFormData.descricaoMaterial) contextualPrompt += ` A descrição atual do material é: "${currentFormData.descricaoMaterial || 'não informado'}".`;
+    if (currentFormData.part_number) contextualPrompt += ` O part number do material é: "${currentFormData.part_number || 'não informado'}".`;
+    if (currentFormData.qtd_pecas) contextualPrompt += ` A quantidade atual de peças é: "${currentFormData.qtd_pecas || 'não informado'}".`;
+    if (currentFormData.valor_unit) contextualPrompt += ` O valor unitário do material é: "${currentFormData.valor_unit || 'não informado'}".`;
+    if (currentFormData.valor_total) contextualPrompt += ` O valor total dos materiais é: "${currentFormData.valor_total || 'não informado'}".`;
+    if (currentFormData.tipo_embalagem) contextualPrompt += ` O tipo de embalagem é: "${currentFormData.tipo_embalagem || 'não informado'}".`;
+    if (currentFormData.codicoes_faturamento) contextualPrompt += ` O condição de faturamento é: "${currentFormData.codicoes_faturamento || 'não informado'}".`;
+    contextualPrompt += ` Por favor, responda de forma útil e concisa, considerando este contexto de formulário de exportação.`;
+
+
+    let chatHistoryForGemini = [...geminiChatHistory];
+    chatHistoryForGemini.push({ role: "user", parts: [{ text: contextualPrompt }] });
+
+    const payload = {
+      contents: chatHistoryForGemini
+    };
+
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+
+    setIsSendingMessage(true);
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Erro na API Gemini: ${response.status} ${response.statusText} - ${errorData.error.message}`);
+      }
+
+      const result = await response.json();
+
+      let botResponseText = 'Desculpe, não consegui processar sua solicitação no momento.';
+
+      if (result.candidates && result.candidates.length > 0 &&
+        result.candidates[0].content && result.candidates[0].content.parts &&
+        result.candidates[0].content.parts.length > 0) {
+        botResponseText = result.candidates[0].content.parts[0].text.trim();
+      }
+
+      addMessageToChat('bot', botResponseText);
+
+      setGeminiChatHistory(prevHistory => [...prevHistory,
+      { role: "user", parts: [{ text: contextualPrompt }] },
+      { role: "model", parts: [{ text: botResponseText }] }
+      ]);
+
+      if (botResponseText.startsWith('PREENCHER_PESO_LIQUIDO:')) {
+        const newDescription = botResponseText.replace('PREENCHER_PESO_LIQUIDO:', '').trim();
+        setValue('peso_liquido_item', newDescription);
+        addMessageToChat('bot', 'Preenchi o peso líquido para você com a sugestão: "' + newDescription + '"');
+      }
+      if (botResponseText.startsWith('PREENCHER_DESCRICAO_MATERIAL:')) {
+        const newDescription = botResponseText.replace('PREENCHER_DESCRICAO_MATERIAL:', '').trim();
+        setValue('descricao_material', newDescription);
+        addMessageToChat('bot', 'Preenchi a descrição do material para você com a sugestão: "' + newDescription + '"');
+      }
+      if (botResponseText.startsWith('PREENCHER_PESO_BRUTO:')) {
+        const newDescription = botResponseText.replace('PREENCHER_PESO_BRUTO:', '').trim();
+        setValue('peso_bruto_caixa', newDescription);
+        addMessageToChat('bot', 'Preenchi o peso bruto para você com a sugestão: "' + newDescription + '"');
+      }
+
+
+    } catch (error) {
+      console.error('Erro ao chamar a API Gemini para o chat:', error);
+      addMessageToChat('bot', `Ocorreu um erro: ${error.message}. Por favor, tente novamente.`);
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
+  const steps = [
+    'Remetente',
+    'Destinatário',
+    'Remessa',
+    'Material',
+    'Embalagem',
+    'Embarque',
+    'Estoque',
+    'Revisão'
+  ];
+
+  const icons = [
+    <MdPerson size={25} />,
+    <MdLocationOn size={25} />,
+    <BsBoxSeam size={25} />,
+    <MdInventory size={25} />,
+    <MdViewModule size={25} />,
+    <MdLocalShipping size={25} />,
+    <FaBoxes size={25} />,
+    <MdChecklist size={25} />
+  ];
+
+  const [activeStep, setActiveStep] = useState(0);
+
+  const handleNextStep = () =>
+    setActiveStep(prev => Math.min(prev + 1, steps.length));
+  const handleBackStep = () =>
+    setActiveStep(prev => Math.max(prev - 1, 0));
+  const handleReset = () => setActiveStep(0);
+
+  function renderStepContainer(step) {
+    switch (step) {
+      case 0:
+        return <Inicial methods={methods} onNext={handleNextStep} />;
+      case 1:
+        return <Informacoes methods={methods} />;
+      case 2:
+        return <FormularioRemessa methods={methods} />;
+      case 3:
+        return <CondicoesRemessa methods={methods} />;
+      case 4:
+        return <MaterialExportacao methods={methods} />;
+      case 5:
+        return <Embalagem methods={methods} />;
+      case 6:
+        return <Transporte methods={methods} />;
+      case 7:
+        return <Estoque methods={methods} />;
+      case 8:
+        return <RevisaoExportacao methods={methods} />;
+      default:
+        return (
+          <Box>
+            <Typography>
+              Ocorreu um erro inesperado. Contate o time de desenvolvimento.
+            </Typography>
+          </Box>
+        );
+    }
+  }
+
+  const onSubmit = data => {
+    console.log('submit', data);
+  };
+
+  return (
+    <Box
+      sx={{
+
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        bgcolor: '#f5f5f5',
+        p: 2,
+        gap: 3,
+        mt: -5
+      }}
+    >
+      {activeStep > 0 && (
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 2,
+            mb: 2,
+          }}
+        >
+          {steps.map((label, index) => {
+            const isActive = index + 1 === activeStep;
+            return (
+              <Box
+                key={label}
+                sx={{
+                  mt: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  p: 2,
+                  borderRadius: 3,
+                  width: "100%",
+                  cursor: 'pointer',
+                  bgcolor: isActive ? 'black' : 'white',
+                  color: isActive ? 'white' : 'text.primary',
+                  boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    transform: 'translateY(-8px)',
+                    boxShadow: '0 6px 12px rgba(0,0,0,0.15)',
+                  },
+                }}
+                onClick={() => setActiveStep(index + 1)}
+              >
+                <Box
+                  sx={{
+                    border: 1,
+                    width: 58,
+                    height: 58,
+                    borderRadius: 3,
+                    bgcolor: isActive ? 'white' : 'grey.200',
+                    color: isActive ? 'black' : 'grey.600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    mb: 1,
+                  }}
+                >
+                  {icons[index]}
+                </Box>
+                <Typography variant="caption" sx={{ fontWeight: isActive ? 'bold' : 'normal', textAlign: 'center' }}>
+                  {label}
+                </Typography>
+              </Box>
+            );
+          })}
+        </Box>
+      )}
+
+      <Box
+        component="form"
+        onSubmit={handleSubmit(onSubmit)}
+        sx={{
+          flex: 1,
+          bgcolor: 'white',
+          borderRadius: 4,
+          boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
+          p: 4,
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+
+          ...(activeStep > 0 && activeStep <= 7 && {
+            backgroundImage: 'linear-gradient(to right, #332f2fff, #b4adadff)',
+            backgroundSize: '100% 7px',
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'top',
+          }),
+
+          justifyContent: activeStep === 0 ? 'center' : 'flex-start',
+          alignItems: activeStep === 0 ? 'center' : 'stretch',
+        }}
+      >
+
+        {activeStep === 1 && (
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Box sx={{ p: 2, bgcolor: 'grey.200', borderRadius: '50%', display: 'inline-flex', mb: 1 }}>
+              <MdPerson size={51} color="grey" />
+            </Box>
+            <Typography sx={{ fontSize: 20 }} fontWeight="bold">
+              Remetente
+            </Typography>
+            <Typography variant="body1" color="text.secondary" >
+              Dados do solicitante
+            </Typography >
+          </Box>
+        )}
+
+         {activeStep === 2 && (
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Box sx={{ p: 2, bgcolor: 'grey.200', borderRadius: '50%', display: 'inline-flex', mb: 1 }}>
+              <MdLocationOn size={51} color="grey" />
+            </Box>
+            <Typography sx={{ fontSize: 20 }} fontWeight="bold">
+              Destinatário
+            </Typography>
+            <Typography variant="body1" color="text.secondary" >
+              Dados do Destino
+            </Typography >
+          </Box>
+        )}
+
+        {activeStep === 3 && (
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Box sx={{ p: 2, bgcolor: 'grey.200', borderRadius: '50%', display: 'inline-flex', mb: 1 }}>
+              <BsBoxSeam size={51} color="grey" />
+            </Box>
+            <Typography sx={{ fontSize: 20 }} fontWeight="bold">
+              Remessa
+            </Typography>
+            <Typography variant="body1" color="text.secondary" >
+              Dados da Remessa
+            </Typography >
+          </Box>
+        )}
+
+         {activeStep === 4 && (
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Box sx={{ p: 2, bgcolor: 'grey.200', borderRadius: '50%', display: 'inline-flex', mb: 1 }}>
+              <MdInventory size={51} color="grey" />
+            </Box>
+            <Typography sx={{ fontSize: 20 }} fontWeight="bold">
+              Material
+            </Typography>
+            <Typography variant="body1" color="text.secondary" >
+              Dados do Material
+            </Typography >
+          </Box>
+        )}
+
+        {activeStep === 5 && (
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Box sx={{ p: 2, bgcolor: 'grey.200', borderRadius: '50%', display: 'inline-flex', mb: 1 }}>
+              <MdViewModule size={51} color="grey" />
+            </Box>
+            <Typography sx={{ fontSize: 20 }} fontWeight="bold">
+              Embalagem
+            </Typography>
+            <Typography variant="body1" color="text.secondary" >
+              Dados da Embalagem
+            </Typography >
+          </Box>
+        )}
+
+         {activeStep === 6 && (
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Box sx={{ p: 2, bgcolor: 'grey.200', borderRadius: '50%', display: 'inline-flex', mb: 1 }}>
+              <MdLocalShipping size={51} color="grey" />
+            </Box>
+            <Typography sx={{ fontSize: 20 }} fontWeight="bold">
+              Embarque
+            </Typography>
+            <Typography variant="body1" color="text.secondary" >
+              Dados da Embarque
+            </Typography >
+          </Box>
+        )}
+
+        {activeStep === 7 && (
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Box sx={{ p: 2, bgcolor: 'grey.200', borderRadius: '50%', display: 'inline-flex', mb: 1 }}>
+              <FaBoxes size={51} color="grey" />
+            </Box>
+            <Typography sx={{ fontSize: 20 }} fontWeight="bold">
+              Estoque
+            </Typography>
+            <Typography variant="body1" color="text.secondary" >
+              Dados do Estoque
+            </Typography >
+          </Box>
+        )}
+        
+
+        {renderStepContainer(activeStep)}
+
+        {activeStep > 0 && (
+          <Box
+            sx={{
+              mt: 4,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <Button
+              variant="outlined"
+              startIcon={<MdArrowLeft />}
+              onClick={handleBackStep}
+              disabled={activeStep === 1}
+              sx={{
+                width: 120,
+                height: 45,
+                fontSize: 16,
+                borderRadius: 8,
+                textTransform: 'none',
+                borderColor: 'grey.400',
+                color: 'text.primary',
+                '&:hover': {
+                  borderColor: 'grey.600',
+                },
+              }}
+            >
+              Anterior
+            </Button>
+
+            <Typography
+              onClick={handleReset}
+              sx={{
+                cursor: 'pointer',
+                color: 'text.secondary',
+                '&:hover': { textDecoration: 'underline' }
+              }}
+            >
+              Voltar ao Início
+            </Typography>
+
+            <Button
+              variant="contained"
+              endIcon={<MdArrowRight />}
+              onClick={handleNextStep}
+              disabled={activeStep === steps.length}
+              sx={{
+                width: 120,
+                height: 45,
+                fontSize: 16,
+                borderRadius: 8,
+                textTransform: 'none',
+                bgcolor: 'common.black',
+                color: 'common.white',
+                '&:hover': {
+                  bgcolor: 'grey.800',
+                },
+              }}
+            >
+              Próximo
+            </Button>
+          </Box>
+        )}
+      </Box>
+      {/* Chatbot Bubble (Botão para abrir o modal) */}
+      <IconButton
+        onClick={() => {
+          setIsChatbotOpen(true);
+          if (geminiChatHistory.length === 0) {
+            addMessageToChat('bot', 'Olá! Sou seu assistente virtual de exportação da empresa zezinho kaue ltda. Como posso ajudar com o formulário hoje?');
+            setGeminiChatHistory(prevHistory => [...prevHistory, { role: "model", parts: [{ text: 'Olá! Sou seu assistente virtual de exportação da Astemo. Como posso ajudar com o formulário hoje?' }] }]);
+          }
+        }}
+        sx={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          backgroundColor: '#000000ff',
+          color: 'white',
+          width: 64,
+          height: 64,
+          borderRadius: '50%',
+          boxShadow: 3,
+          overflow: 'hidden',
+          transition: 'all 0.3s ease-in-out',
+          '&:hover': {
+            backgroundColor: 'transparent',
+            backgroundImage: 'radial-gradient(circle at center, #000000ff 0%, #232425ff 50%, #000000ff 100%)',
+            width: 110,
+            height: 110,
+            borderRadius: '24px',
+            transform: 'translateY(-10px)',
+          },
+          zIndex: 1000,
+        }}
+      >
+        {/* Ícone do Robô */}
+        <RiRobot2Line
+          size={32}
+        />
+      </IconButton>
+
+      {/* Chatbot Modal */}
+      <Modal
+        open={isChatbotOpen}
+        onClose={() => setIsChatbotOpen(false)}
+        sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <Box
+          sx={{
+            bgcolor: 'background.paper',
+            borderRadius: 5,
+            boxShadow: 24,
+            width: '90%',
+            maxWidth: 650,
+            height: 600,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+          <Box
+            sx={{
+              backgroundColor: '#313235ff',
+              color: 'white',
+              padding: 2,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontWeight: 'bold',
+              borderTopLeftRadius: 8,
+              borderTopRightRadius: 8,
+            }}
+          >
+            <Typography variant="h5">Assistente de Exportação </Typography>
+            <IconButton onClick={() => setIsChatbotOpen(false)} color="inherit">
+              <IoIosClose size={24} />
+            </IconButton>
+          </Box>
+          <Box
+            sx={{
+              flexGrow: 1,
+              padding: 2,
+              overflowY: 'auto',
+              backgroundColor: '#f9fafb',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1,
+            }}
+          >
+            {chatMessages.map((msg, index) => (
+              <Box
+                key={index}
+                sx={{
+                  alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                  backgroundColor: msg.role === 'user' ? '#dbeafe' : '#e5e7eb',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '0.75rem',
+                  maxWidth: '80%',
+                  wordBreak: 'break-word',
+                }}
+              >
+                <Typography variant="body2" sx={{ fontSize: '1.2rem' }}>
+                  {msg.text}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+          <Box
+            sx={{
+              padding: 2,
+              borderTop: '1px solid #e5e7eb',
+              display: 'flex',
+              gap: 1,
+            }}
+          >
+            <MuiTextField
+              fullWidth
+              variant="outlined"
+              placeholder="Digite sua mensagem..."
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && chatInput.trim()) {
+                  generateChatResponse(chatInput.trim());
+                  setChatInput('');
+                }
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  padding: '12px 26px',
+                },
+                '& .MuiOutlinedInput-input': {
+                  padding: 0,
+                },
+              }}
+            />
+            <Button
+              variant="contained"
+              onClick={() => {
+                if (chatInput.trim()) {
+                  generateChatResponse(chatInput.trim());
+                  setChatInput('');
+                }
+              }}
+              disabled={isSendingMessage}
+              sx={{
+                minWidth: 'auto',
+                padding: '10px 25px',
+                borderRadius: 2,
+                textTransform: 'none',
+                backgroundColor: '#097412ff',
+                fontSize: 12,
+                '&:hover': { backgroundColor: '#509647ff' },
+              }}
+            >
+              {isSendingMessage ? <CircularProgress size={24} color="inherit" /> : 'Enviar'}
+            </Button>
+          </Box>
+        </Box>
+      </Modal>
+    </Box>
+  );
+}
