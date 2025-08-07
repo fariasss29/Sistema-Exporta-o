@@ -55,30 +55,30 @@ export default function Exportacao({ showHeader = true }) {
 
   const criarFormulario = async (data) => {
     try {
-      console.log('Botão clicado! Dados a serem enviados:', data); // Verifique se isso aparece no console
+      // Verifique se os dados estão sendo logados corretamente
+      console.log('Botão clicado! Dados a serem enviados:', data);
 
       // 1. Salva os dados no backend usando o axios
       await toast.promise(
         axios.post('/formulario/exportacao', data),
         {
           loading: 'Salvando formulário...',
-          success: 'Formulário cadastrado com sucesso!',
-          error: (err) => err.response?.data?.message || 'Erro ao salvar o formulário.',
+          success: (res) => {
+            console.log('Formulário salvo com sucesso!', res); // Adicionando log de sucesso
+            return 'Formulário cadastrado com sucesso!';
+          },
+          error: (err) => {
+            // Exibindo o erro detalhado
+            console.error('Erro ao salvar formulário:', err); // Log do erro
+            return err.response?.data?.message || 'Erro ao salvar o formulário.';
+          },
         }
       );
-
-      // 2. Após salvar com sucesso, gera o PDF (Atenção: A função buildExportacaoPdf
-      // precisa estar disponível aqui ou importada)
-      const blob = await buildExportacaoPdf(data);
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-
-      // 3. Redireciona para a página inicial
-      navigate('/', { replace: true });
-    } catch (error) {
-      console.error('Erro completo ao criar formulário:', error);
+    } catch (err) {
+      console.error('Erro inesperado:', err); // Log de erro inesperado
     }
   };
+
 
 
 
@@ -469,18 +469,22 @@ export default function Exportacao({ showHeader = true }) {
           <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', gap: 2 }}>
             <Button
               variant="contained"
-              onClick={handleSubmit(criarFormulario)}  
+              onClick={() => {
+                console.log('Botão de envio clicado! Iniciando envio dos dados...');
+                const dados = watch();  // Captura os dados
+                console.log('Dados a serem enviados:', dados);  // Verifica os dados
+                if (dados) {
+                  criarFormulario(dados);  // Envia os dados se estiverem preenchidos corretamente
+                } else {
+                  console.error('Não há dados para enviar.');
+                }
+              }}
               sx={{
-                width: 120,
-                height: 45,
-                fontSize: 16,
+                width: 100,
+                height: 35,
+                fontSize: 14,
                 borderRadius: 8,
                 textTransform: 'none',
-                bgcolor: 'black',
-                color: 'white',
-                '&:hover': {
-                  bgcolor: 'grey.800',
-                },
               }}
             >
               Salvar
