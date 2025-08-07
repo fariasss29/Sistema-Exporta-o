@@ -23,6 +23,7 @@ import FormularioRemessa from '@/pages/exportacao/formulario_remessa';
 import CondicoesRemessa from '@/pages/exportacao/condicoes_remessa';
 import RevisaoExportacao from '@/pages/exportacao/revisao_exportacao';
 import MaterialExportacao from '@/pages/exportacao/material_exportacao';
+import { buildExportacaoPdf } from './exportacao_pdf';
 import Embalagem from '@/pages/exportacao/embalagem';
 import Transporte from '@/pages/exportacao/transporte';
 import Estoque from '@/pages/exportacao/estoque';
@@ -46,6 +47,42 @@ export default function Exportacao({ showHeader = true }) {
     setChatMessages(prevMessages => [...prevMessages, { role, text }]);
   };
 
+  const handleNext = () => {
+    const dados = watch();
+    console.log('Dados registrados ao clicar em Próximo:', dados);
+    setDadosSalvos(dados);
+  };
+
+   const criarFormulario = async (data) => {
+    try {
+      console.log('Botão clicado! Dados a serem enviados:', data); // Verifique se isso aparece no console
+
+      // 1. Salva os dados no backend usando o axios
+      await toast.promise(
+        axios.post('/formulario/exportacao', data),
+        {
+          loading: 'Salvando formulário...',
+          success: 'Formulário cadastrado com sucesso!',
+          error: (err) => err.response?.data?.message || 'Erro ao salvar o formulário.',
+        }
+      );
+      
+      // 2. Após salvar com sucesso, gera o PDF (Atenção: A função buildExportacaoPdf
+      // precisa estar disponível aqui ou importada)
+      const blob = await buildExportacaoPdf(data); 
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+
+      // 3. Redireciona para a página inicial
+      navigate('/', { replace: true });
+    } catch (error) {
+      console.error('Erro completo ao criar formulário:', error);
+    }
+  };
+
+  
+
+  const [dadosSalvos, setDadosSalvos] = useState({});
   const generateChatResponse = async (userMessage) => {
     addMessageToChat('user', userMessage);
 
@@ -178,6 +215,11 @@ export default function Exportacao({ showHeader = true }) {
     setActiveStep(prev => Math.max(prev - 1, 0));
   const handleReset = () => setActiveStep(0);
 
+  const handleNextAndLog = () => {
+    handleNext();
+    handleNextStep();
+  };
+
   function renderStepContainer(step) {
     switch (step) {
       case 0:
@@ -197,7 +239,7 @@ export default function Exportacao({ showHeader = true }) {
       case 7:
         return <Estoque methods={methods} />;
       case 8:
-        return <RevisaoExportacao methods={methods} />;
+         return <RevisaoExportacao methods={methods} onSave={handleSubmit(criarFormulario)} />;
       default:
         return (
           <Box>
@@ -324,7 +366,7 @@ export default function Exportacao({ showHeader = true }) {
           </Box>
         )}
 
-         {activeStep === 2 && (
+        {activeStep === 2 && (
           <Box sx={{ textAlign: 'center', mb: 3 }}>
             <Box sx={{ p: 2, bgcolor: 'grey.200', borderRadius: '50%', display: 'inline-flex', mb: 1 }}>
               <MdLocationOn size={51} color="grey" />
@@ -352,7 +394,7 @@ export default function Exportacao({ showHeader = true }) {
           </Box>
         )}
 
-         {activeStep === 4 && (
+        {activeStep === 4 && (
           <Box sx={{ textAlign: 'center', mb: 3 }}>
             <Box sx={{ p: 2, bgcolor: 'grey.200', borderRadius: '50%', display: 'inline-flex', mb: 1 }}>
               <MdInventory size={51} color="grey" />
@@ -380,7 +422,7 @@ export default function Exportacao({ showHeader = true }) {
           </Box>
         )}
 
-         {activeStep === 6 && (
+        {activeStep === 6 && (
           <Box sx={{ textAlign: 'center', mb: 3 }}>
             <Box sx={{ p: 2, bgcolor: 'grey.200', borderRadius: '50%', display: 'inline-flex', mb: 1 }}>
               <MdLocalShipping size={51} color="grey" />
@@ -407,7 +449,7 @@ export default function Exportacao({ showHeader = true }) {
             </Typography >
           </Box>
         )}
-        
+
 
         {renderStepContainer(activeStep)}
 
@@ -455,7 +497,7 @@ export default function Exportacao({ showHeader = true }) {
             <Button
               variant="contained"
               endIcon={<MdArrowRight />}
-              onClick={handleNextStep}
+              onClick={handleNextAndLog}
               disabled={activeStep === steps.length}
               sx={{
                 width: 120,
