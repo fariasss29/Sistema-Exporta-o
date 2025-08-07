@@ -53,7 +53,7 @@ export default function Exportacao({ showHeader = true }) {
     setDadosSalvos(dados);
   };
 
-   const criarFormulario = async (data) => {
+  const criarFormulario = async (data) => {
     try {
       console.log('Botão clicado! Dados a serem enviados:', data); // Verifique se isso aparece no console
 
@@ -66,10 +66,10 @@ export default function Exportacao({ showHeader = true }) {
           error: (err) => err.response?.data?.message || 'Erro ao salvar o formulário.',
         }
       );
-      
+
       // 2. Após salvar com sucesso, gera o PDF (Atenção: A função buildExportacaoPdf
       // precisa estar disponível aqui ou importada)
-      const blob = await buildExportacaoPdf(data); 
+      const blob = await buildExportacaoPdf(data);
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
 
@@ -80,7 +80,7 @@ export default function Exportacao({ showHeader = true }) {
     }
   };
 
-  
+
 
   const [dadosSalvos, setDadosSalvos] = useState({});
   const generateChatResponse = async (userMessage) => {
@@ -239,7 +239,7 @@ export default function Exportacao({ showHeader = true }) {
       case 7:
         return <Estoque methods={methods} />;
       case 8:
-         return <RevisaoExportacao methods={methods} onSave={handleSubmit(criarFormulario)} />;
+        return <RevisaoExportacao methods={methods} onSave={handleSubmit(criarFormulario)} />;
       default:
         return (
           <Box>
@@ -450,6 +450,43 @@ export default function Exportacao({ showHeader = true }) {
           </Box>
         )}
 
+        {activeStep === 8 && (
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Box sx={{ p: 2, bgcolor: 'grey.200', borderRadius: '50%', display: 'inline-flex', mb: 1 }}>
+              <MdChecklist size={51} color="grey" />
+            </Box>
+            <Typography sx={{ fontSize: 20 }} fontWeight="bold">
+              Revisão
+            </Typography>
+            <Typography variant="body1" color="text.secondary" >
+              Revise os dados antes de finalizar.
+            </Typography>
+          </Box>
+        )}
+
+        {/* Step 8 - Revisão */}
+        {activeStep === 8 && (
+          <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', gap: 2 }}>
+            <Button
+              variant="contained"
+              onClick={handleSubmit(criarFormulario)}  
+              sx={{
+                width: 120,
+                height: 45,
+                fontSize: 16,
+                borderRadius: 8,
+                textTransform: 'none',
+                bgcolor: 'black',
+                color: 'white',
+                '&:hover': {
+                  bgcolor: 'grey.800',
+                },
+              }}
+            >
+              Salvar
+            </Button>
+          </Box>
+        )}
 
         {renderStepContainer(activeStep)}
 
