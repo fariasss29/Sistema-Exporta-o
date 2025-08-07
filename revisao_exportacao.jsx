@@ -4,23 +4,44 @@ import { MdOutlineWorkspacePremium } from 'react-icons/md';
 import Informacoes from './informacoes';
 import FormularioRemessa from './formulario_remessa';
 import CondicoesRemessa from './condicoes_remessa';
-import Embalagem from '@/pages/exportacao/embalagem'
-import Transporte from '@/pages/exportacao/transporte'
-import MaterialExportacao from '@/pages/exportacao/material_exportacao'
-import Estoque from '@/pages/exportacao/estoque'
+import Embalagem from '@/pages/exportacao/embalagem';
+import Transporte from '@/pages/exportacao/transporte';
+import MaterialExportacao from '@/pages/exportacao/material_exportacao';
+import Estoque from '@/pages/exportacao/estoque';
 import { buildExportacaoPdf } from './exportacao_pdf';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios'; // Importação do axios para fazer requisições HTTP
+import toast from 'react-hot-toast'; // Importação do toast para exibir notificações
 
-export default function RevisaoExportacao({ methods }) {
+export default function RevisaoExportacao({ methods, onSave }) {
   const { handleSubmit } = methods;
   const navigate = useNavigate();
 
+  // Função que salva os dados no backend e depois gera o PDF
+  const criarFormulario = async (data) => {
+    try {
+      // 1. Salva os dados no backend usando o axios
+      // O toast.promise exibe uma notificação de carregamento, sucesso ou erro
+      await toast.promise(
+        axios.post('/formulario/exportacao', data),
+        {
+          loading: 'Salvando formulário...',
+          success: 'Formulário cadastrado com sucesso!',
+          error: (err) => err.response?.data?.message || 'Erro ao salvar o formulário.',
+        }
+      );
 
-  const gerarPdf = () => {
-    handleSubmit(async (data) => {
+      // 2. Após salvar com sucesso, gera o PDF
       const blob = await buildExportacaoPdf(data);
+      const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
-    })();
+
+      // 3. Redireciona para a página inicial
+      navigate('/', { replace: true });
+    } catch (error) {
+      // O toast.promise já lida com os erros, mas o console.error ajuda no debug.
+      console.error('Erro completo ao criar formulário:', error);
+    }
   };
 
   const handleEditClick = (tab) => {
@@ -51,8 +72,6 @@ export default function RevisaoExportacao({ methods }) {
               Dados do Remetente
             </Typography>
           </Box>
-
-
           <Informacoes methods={methods} />
         </Box>
 
@@ -76,7 +95,6 @@ export default function RevisaoExportacao({ methods }) {
           <FormularioRemessa methods={methods} />
         </Box>
 
-        
         <Box
           sx={{
             backgroundColor: '#fff',
@@ -94,10 +112,10 @@ export default function RevisaoExportacao({ methods }) {
               Dados da Remessa
             </Typography>
           </Box>
-        <CondicoesRemessa methods={methods} />
+          <CondicoesRemessa methods={methods} />
         </Box>
-        
-          <Box
+
+        <Box
           sx={{
             backgroundColor: '#fff',
             borderRadius: 2,
@@ -114,10 +132,10 @@ export default function RevisaoExportacao({ methods }) {
               Dados do Material
             </Typography>
           </Box>
-        <MaterialExportacao methods={methods} />
+          <MaterialExportacao methods={methods} />
         </Box>
 
-          <Box
+        <Box
           sx={{
             backgroundColor: '#fff',
             borderRadius: 2,
@@ -134,9 +152,8 @@ export default function RevisaoExportacao({ methods }) {
               Dados da Embalagem
             </Typography>
           </Box>
-        <Embalagem methods={methods} />
+          <Embalagem methods={methods} />
         </Box>
-
 
         <Box
           sx={{
@@ -155,7 +172,7 @@ export default function RevisaoExportacao({ methods }) {
               Dados do Embarque
             </Typography>
           </Box>
-        <Transporte methods={methods} />
+          <Transporte methods={methods} />
         </Box>
 
         <Box
@@ -175,14 +192,12 @@ export default function RevisaoExportacao({ methods }) {
               Dados do Estoque
             </Typography>
           </Box>
-        <Estoque methods={methods} />
+          <Estoque methods={methods} />
         </Box>
-
-
 
         <Button
           type="button"
-          onClick={gerarPdf}
+          onClick={onSave}
           variant="contained"
           sx={{
             bgcolor: '#276cdb',
